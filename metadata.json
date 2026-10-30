@@ -1,0 +1,6 @@
+{
+  "name": "Campus Eco-Drop",
+  "description": "Smart campus recycling and micro-rewards platform converting segregated student waste into instant canteen discounts and zero-waste university sustainability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

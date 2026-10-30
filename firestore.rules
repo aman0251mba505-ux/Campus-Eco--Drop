@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'aman.0251mba505@dgu.ac.in' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow update: if isSignedIn() && isValidId(userId) && (
+        request.auth.uid == userId || isAdmin()
+      );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Deposits collection
+    match /deposits/{depositId} {
+      allow get: if isSignedIn() && isValidId(depositId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(depositId) && incoming().studentUid == request.auth.uid;
+      allow update, delete: if isAdmin() && isValidId(depositId);
+    }
+
+    // Vouchers collection
+    match /vouchers/{voucherId} {
+      allow get: if isSignedIn() && isValidId(voucherId);
+      allow list: if isSignedIn() && (
+        resource.data.studentUid == request.auth.uid || isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(voucherId) && incoming().studentUid == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(voucherId) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['isRedeemed', 'redeemedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() && isValidId(voucherId);
+    }
+
+    // Drop-Boxes collection
+    match /dropBoxes/{boxId} {
+      allow get, list: if isSignedIn() && isValidId(boxId);
+      allow create, delete: if isAdmin() && isValidId(boxId);
+      allow update: if isSignedIn() && isValidId(boxId) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['capacityPercent', 'totalCollectedKg', 'status', 'lastEmptied']) ||
+        isAdmin()
+      );
+    }
+  }
+}

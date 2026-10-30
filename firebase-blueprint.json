@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Student or campus member profile authenticated via college Google account",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "Student college email address" },
+        "displayName": { "type": "string", "description": "Full student name" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "hostel": { "type": "string", "description": "Assigned campus hostel wing" },
+        "ecoPoints": { "type": "number", "description": "Current active eco points balance" },
+        "totalWeightKg": { "type": "number", "description": "Lifetime kilograms of recyclables deposited" },
+        "role": { "type": "string", "enum": ["student", "canteen_vendor", "facilities_admin"], "description": "User permission tier" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "ecoPoints", "totalWeightKg", "role"]
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "Log of verified recyclable waste deposited at a campus drop-box",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Deposit transaction ID" },
+        "studentUid": { "type": "string", "description": "UID of the student making the deposit" },
+        "studentEmail": { "type": "string", "description": "College email of student" },
+        "studentName": { "type": "string", "description": "Name of student" },
+        "dropBoxCode": { "type": "string", "description": "Drop-box identifier like DGU-BOX-01" },
+        "dropBoxName": { "type": "string", "description": "Campus drop-box location title" },
+        "items": { "type": "array", "description": "Breakdown of deposited items" },
+        "totalPoints": { "type": "number", "description": "Eco points awarded" },
+        "totalWeightKg": { "type": "number", "description": "Total scrap weight in kg" },
+        "co2OffsetKg": { "type": "number", "description": "Estimated CO2 offset in kg" },
+        "voucherCode": { "type": "string", "description": "Voucher issued from this deposit" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentUid", "studentEmail", "dropBoxCode", "totalPoints", "totalWeightKg"]
+    },
+    "Voucher": {
+      "title": "Voucher",
+      "description": "Instant digital canteen discount voucher issued to student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Voucher ID" },
+        "code": { "type": "string", "description": "Unique alphanumeric redemption code" },
+        "studentUid": { "type": "string", "description": "Student owner UID" },
+        "studentEmail": { "type": "string", "description": "Student email" },
+        "canteenId": { "type": "string", "description": "Target canteen outlet ID" },
+        "canteenName": { "type": "string", "description": "Name of canteen partner" },
+        "title": { "type": "string", "description": "Discount offer title" },
+        "discountValueInr": { "type": "number", "description": "Rupee discount value" },
+        "minSpendInr": { "type": "number", "description": "Minimum order bill requirement" },
+        "isRedeemed": { "type": "boolean", "description": "Whether already redeemed at canteen" },
+        "earnedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "redeemedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "studentUid", "canteenId", "discountValueInr", "isRedeemed"]
+    },
+    "DropBox": {
+      "title": "DropBox",
+      "description": "Campus physical drop-box kiosk state and capacity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique Box ID" },
+        "code": { "type": "string", "description": "Hardware station tag" },
+        "name": { "type": "string", "description": "Station name" },
+        "campusZone": { "type": "string", "description": "Campus location" },
+        "landmark": { "type": "string", "description": "Walking directions" },
+        "capacityPercent": { "type": "number", "description": "Current fill percentage 0-100" },
+        "totalCollectedKg": { "type": "number", "description": "Total kg collected since launch" },
+        "status": { "type": "string", "enum": ["active", "nearly_full", "maintenance"] },
+        "lastEmptied": { "type": "string" }
+      },
+      "required": ["id", "code", "name", "capacityPercent", "totalCollectedKg", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public and authenticated student user profiles"
+    },
+    "/deposits/{depositId}": {
+      "schema": "Deposit",
+      "description": "Collection of all campus recycling deposits"
+    },
+    "/vouchers/{voucherId}": {
+      "schema": "Voucher",
+      "description": "Digital canteen vouchers issued to students"
+    },
+    "/dropBoxes/{boxId}": {
+      "schema": "DropBox",
+      "description": "Campus drop-box kiosks status and fill levels"
+    }
+  }
+}
