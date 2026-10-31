@@ -12,6 +12,7 @@ import {
   Ticket,
   ChevronRight,
   ExternalLink,
+  Award,
 } from 'lucide-react';
 import { DropBoxLocation, DepositRecord, DigitalVoucher } from '../types';
 import { AiWasteAdvisor } from './AiWasteAdvisor';
@@ -22,6 +23,8 @@ interface DepositDashboardViewProps {
   activeVouchers: DigitalVoucher[];
   ecoPoints: number;
   onOpenDeposit: (boxId?: string) => void;
+  onOpenScanner: () => void;
+  onOpenCertificate: () => void;
   onNavigateTab: (tab: string) => void;
 }
 
@@ -31,6 +34,8 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
   activeVouchers,
   ecoPoints,
   onOpenDeposit,
+  onOpenScanner,
+  onOpenCertificate,
   onNavigateTab,
 }) => {
   const totalScrapKg = dropBoxes.reduce((acc, b) => acc + b.totalCollectedKg, 0);
@@ -56,21 +61,29 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
           </div>
 
           {/* Action Row */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
             <button
-              onClick={() => onOpenDeposit()}
-              className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-700/20 flex items-center justify-center gap-2"
+              onClick={onOpenScanner}
+              className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-emerald-700/20 flex items-center justify-center gap-2"
             >
-              <QrCode className="w-5 h-5" />
+              <QrCode className="w-4 h-4" />
               <span>Scan Drop-Box & Deposit</span>
             </button>
 
             <button
               onClick={() => onNavigateTab('wallet')}
-              className="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5"
             >
               <Ticket className="w-4 h-4 text-emerald-600" />
               <span>My Vouchers ({activeVouchers.length})</span>
+            </button>
+
+            <button
+              onClick={onOpenCertificate}
+              className="px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-semibold rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Award className="w-4 h-4 text-amber-600" />
+              <span>NAAC Certificate</span>
             </button>
           </div>
 
@@ -148,7 +161,7 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
             <span className="text-xs font-bold text-slate-400">pts</span>
           </div>
           <span className="text-[11px] text-slate-500 block mt-1">
-            Rank #1 in Shivalik Hostel
+            {ecoPoints > 0 ? 'Active Eco Champion' : 'Ready for first deposit'}
           </span>
         </div>
 
@@ -239,7 +252,7 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Recent Campus Deposits
+                  Campus Verified Deposits
                 </h3>
                 <p className="text-xs text-slate-500">
                   Live verification log from student community
@@ -251,27 +264,33 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
             </div>
 
             <div className="divide-y divide-slate-100">
-              {recentDeposits.map((dep) => (
-                <div key={dep.id} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-mono text-xs font-bold">
-                      +{dep.totalPoints}
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">
-                        {dep.studentName} deposited {dep.items.map((i) => `${i.quantity} ${i.name.split(' ')[0]}`).join(', ')}
-                      </span>
-                      <span className="text-[11px] text-slate-400 block mt-0.5">
-                        {dep.dropBoxName} · {dep.timestamp}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span className="font-mono text-xs font-semibold text-slate-600">
-                    {dep.totalWeightKg} kg
-                  </span>
+              {recentDeposits.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No deposits logged yet today. Scan a drop-box to make your first deposit!
                 </div>
-              ))}
+              ) : (
+                recentDeposits.slice(0, 5).map((dep) => (
+                  <div key={dep.id} className="py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-mono text-xs font-bold">
+                        +{dep.totalPoints}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">
+                          {dep.studentName} deposited {dep.items.map((i) => `${i.quantity} ${i.name.split(' ')[0]}`).join(', ')}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                          {dep.dropBoxName} · {dep.timestamp}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="font-mono text-xs font-semibold text-slate-600">
+                      {dep.totalWeightKg} kg
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
