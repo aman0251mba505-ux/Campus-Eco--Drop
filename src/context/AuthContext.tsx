@@ -6,9 +6,9 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
+import { auth, db, googleProvider } from '../lib/firebase';
 
-interface AuthUser {
+export interface AuthUser {
   uid: string;
   email: string | null;
   displayName: string | null;
@@ -24,30 +24,35 @@ interface AuthContextType {
   currentUser: AuthUser | null;
   firebaseUser: User | null;
   loading: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   loginAsDemoStudent: () => void;
+  loginWithCustomCollegeEmail: (email: string, name: string, hostel: string) => void;
   updateUserStats: (addedPoints: number, addedWeightKg: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEMO_STUDENT: AuthUser = {
+// Clean fresh profile for new students
+const FRESH_NEW_STUDENT: AuthUser = {
   uid: 'demo-student-aman',
   email: 'aman.0251mba505@dgu.ac.in',
-  displayName: 'Aman (DGU Student)',
+  displayName: 'Aman',
   photoURL: null,
   isCollegeEmail: true,
   hostel: 'Shivalik Boys Hostel',
-  ecoPoints: 385,
-  totalWeightKg: 18.6,
+  ecoPoints: 0,
+  totalWeightKg: 0,
   role: 'student',
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(DEMO_STUDENT);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -57,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user.email &&
           (user.email.endsWith('@dgu.ac.in') ||
            user.email.includes('dgu') ||
-           user.email.endsWith('@gmail.com')) // allow student testing
+           user.email.endsWith('@gmail.com'))
         );
 
         const userDocRef = doc(db, 'users', user.uid);
@@ -72,12 +77,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               photoURL: user.photoURL,
               isCollegeEmail: isCollege,
               hostel: data.hostel || 'Shivalik Boys Hostel',
-              ecoPoints: data.ecoPoints ?? 100,
-              totalWeightKg: data.totalWeightKg ?? 2.5,
+              ecoPoints: Number(data.ecoPoints ?? 0),
+              totalWeightKg: Number(data.totalWeightKg ?? 0),
               role: data.role || 'student',
             });
           } else {
-            // Create initial profile in Firestore
+            // Brand new student profile starts at clean 0
             const initialProfile: AuthUser = {
               uid: user.uid,
               email: user.email,
@@ -85,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               photoURL: user.photoURL,
               isCollegeEmail: isCollege,
               hostel: 'Shivalik Boys Hostel',
-              ecoPoints: 50, // Welcome bonus
+              ecoPoints: 0,
               totalWeightKg: 0,
               role: 'student',
             };
@@ -98,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(initialProfile);
           }
         } catch (error) {
-          console.warn('Could not load user from Firestore, using session state:', error);
+          console.warn('Could not load user from Firestore, using clean state:', error);
           setCurrentUser({
             uid: user.uid,
             email: user.email,
@@ -106,14 +111,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             photoURL: user.photoURL,
             isCollegeEmail: isCollege,
             hostel: 'Shivalik Boys Hostel',
-            ecoPoints: 120,
-            totalWeightKg: 3.2,
+            ecoPoints: 0,
+            totalWeightKg: 0,
             role: 'student',
           });
         }
       } else {
-        // Fallback to active demo student so app is always interactive
-        setCurrentUser(DEMO_STUDENT);
+        // Unauthenticated visitor defaults to null or clean demo
+        setCurrentUser(null);
       }
       setLoading(false);
     });
@@ -121,13 +126,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
+  const clearAuthError = () => setAuthError(null);
+
   const loginWithGoogle = async () => {
+    setAuthError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      console.log('Logged in user:', result.user.email);
+      await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error('Google sign-in error:', error);
-      alert(`Sign in: ${error.message || 'Please enable popups to sign in'}`);
+      const code = error?.code || '';
+      const message = error?.message || '';
+
+      if (code.includes('unauthorized-domain') || message.includes('unauthorized domain')) {
+        setAuthError(
+          'This domain is not authorized in Firebase. Please add your current domain to Firebase Console -> Authentication -> Settings -> Authorized Domains. Or use the 1-click College Sign-In!'
+        );
+      } else if (code.includes('popup-blocked')) {
+        setAuthError('Sign-in popup was blocked by your browser. Please allow popups or use 1-click sign-in.');
+      } else if (code.includes('popup-closed-by-user')) {
+        setAuthError('Sign-in popup was closed before completing.');
+      } else {
+        setAuthError(message || 'Failed to sign in with Google.');
+      }
+      throw error;
     }
   };
 
@@ -135,13 +156,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await firebaseSignOut(auth);
       setCurrentUser(null);
+      setFirebaseUser(null);
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   const loginAsDemoStudent = () => {
-    setCurrentUser(DEMO_STUDENT);
+    setCurrentUser(FRESH_NEW_STUDENT);
+    setAuthError(null);
+  };
+
+  const loginWithCustomCollegeEmail = (email: string, name: string, hostel: string) => {
+    const isCollege = email.endsWith('@dgu.ac.in') || email.includes('dgu');
+    // Clean fresh new user stats = 0
+    setCurrentUser({
+      uid: `student-${Date.now()}`,
+      email,
+      displayName: name,
+      photoURL: null,
+      isCollegeEmail: isCollege,
+      hostel: hostel || 'Shivalik Boys Hostel',
+      ecoPoints: 0,
+      totalWeightKg: 0,
+      role: 'student',
+    });
+    setAuthError(null);
   };
 
   const updateUserStats = async (addedPoints: number, addedWeightKg: number) => {
@@ -177,9 +217,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         firebaseUser,
         loading,
+        authError,
+        clearAuthError,
         loginWithGoogle,
         logout,
         loginAsDemoStudent,
+        loginWithCustomCollegeEmail,
         updateUserStats,
       }}
     >

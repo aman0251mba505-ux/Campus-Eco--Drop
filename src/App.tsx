@@ -5,7 +5,7 @@
  * Created for: aman.0251mba505@dgu.ac.in
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/Header';
 import { DepositDashboardView } from './components/DepositDashboardView';
@@ -19,8 +19,6 @@ import { VentureExplorer } from './components/VentureExplorer';
 import {
   INITIAL_DROP_BOXES,
   CANTEEN_PARTNERS,
-  INITIAL_STUDENT_VOUCHERS,
-  INITIAL_DEPOSIT_RECORDS,
   INITIAL_HOSTEL_STANDINGS,
   INITIAL_STUDENT_CHAMPIONS,
 } from './data/initialData';
@@ -33,32 +31,101 @@ import {
   StudentChampion,
 } from './types';
 import { VENTURE_METADATA } from './data/ventureData';
-import { Leaf, ExternalLink, ShieldCheck, Building2, Github, Cloud } from 'lucide-react';
+import { db } from './lib/firebase';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { Leaf, ExternalLink, Building2 } from 'lucide-react';
 
 function CampusEcoDropMain() {
-  const { currentUser, updateUserStats } = useAuth();
+  const { currentUser, firebaseUser, updateUserStats } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('deposit');
   const [dropBoxes, setDropBoxes] = useState<DropBoxLocation[]>(INITIAL_DROP_BOXES);
   const [canteens, setCanteens] = useState<CanteenPartner[]>(CANTEEN_PARTNERS);
-  const [vouchers, setVouchers] = useState<DigitalVoucher[]>(INITIAL_STUDENT_VOUCHERS);
-  const [recentDeposits, setRecentDeposits] = useState<DepositRecord[]>(INITIAL_DEPOSIT_RECORDS);
+
+  // User-specific data: clean zero slate for new users!
+  const [vouchers, setVouchers] = useState<DigitalVoucher[]>([]);
+  const [userDeposits, setUserDeposits] = useState<DepositRecord[]>([]);
+
   const [hostelStandings, setHostelStandings] = useState<HostelStanding[]>(INITIAL_HOSTEL_STANDINGS);
   const [studentChampions, setStudentChampions] = useState<StudentChampion[]>(INITIAL_STUDENT_CHAMPIONS);
-  const [ecoPoints, setEcoPoints] = useState<number>(385);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState<boolean>(false);
   const [selectedDropBoxId, setSelectedDropBoxId] = useState<string | undefined>(undefined);
 
+  // Sync user's personal vouchers and deposits from Firestore
+  useEffect(() => {
+    if (!currentUser?.email) {
+      setVouchers([]);
+      setUserDeposits([]);
+      return;
+    }
+
+    const loadUserData = async () => {
+      try {
+        const vouchersQuery = query(
+          collection(db, 'vouchers'),
+          where('studentEmail', '==', currentUser.email)
+        );
+        const vSnap = await getDocs(vouchersQuery);
+        const loadedVouchers: DigitalVoucher[] = [];
+        vSnap.forEach((d) => {
+          loadedVouchers.push(d.data() as DigitalVoucher);
+        });
+        setVouchers(loadedVouchers);
+
+        const depositsQuery = query(
+          collection(db, 'deposits'),
+          where('studentEmail', '==', currentUser.email)
+        );
+        const dSnap = await getDocs(depositsQuery);
+        const loadedDeposits: DepositRecord[] = [];
+        dSnap.forEach((d) => {
+          loadedDeposits.push(d.data() as DepositRecord);
+        });
+        setUserDeposits(loadedDeposits);
+      } catch (err) {
+        console.warn('Could not fetch user records from Firestore, starting clean state:', err);
+      }
+    };
+
+    loadUserData();
+  }, [currentUser?.email]);
+
   const activeVouchersCount = vouchers.filter((v) => !v.isRedeemed).length;
-  const totalKgRecycled = recentDeposits.reduce((sum, d) => sum + d.totalWeightKg, 0) + 18.6;
+  const userKgRecycled = currentUser ? currentUser.totalWeightKg : 0;
+  const userEcoPoints = currentUser ? currentUser.ecoPoints : 0;
 
   // Handle new waste deposit
-  const handleDepositComplete = (record: DepositRecord, voucher: DigitalVoucher) => {
-    setRecentDeposits((prev) => [record, ...prev]);
+  const handleDepositComplete = async (record: DepositRecord, voucher: DigitalVoucher) => {
+    // 1. Update local states
+    setUserDeposits((prev) => [record, ...prev]);
     setVouchers((prev) => [voucher, ...prev]);
-    setEcoPoints((prev) => prev + record.totalPoints);
     updateUserStats(record.totalPoints, record.totalWeightKg);
 
-    // Update Drop Box capacity
+    // 2. Persist to Firestore if online
+    try {
+      await setDoc(doc(db, 'deposits', record.id), {
+        ...record,
+        studentUid: currentUser?.uid || 'guest-uid',
+        createdAt: serverTimestamp(),
+      });
+
+      await setDoc(doc(db, 'vouchers', voucher.id), {
+        ...voucher,
+        studentUid: currentUser?.uid || 'guest-uid',
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn('Firestore write warning (offline or local):', e);
+    }
+
+    // 3. Update Drop Box capacity
     setDropBoxes((prev) =>
       prev.map((box) => {
         if (box.code === record.dropBoxCode) {
@@ -75,10 +142,11 @@ function CampusEcoDropMain() {
       })
     );
 
-    // Update Hostel Standing
+    // 4. Update Hostel Standing
+    const userHostel = currentUser?.hostel || 'Shivalik Boys Hostel';
     setHostelStandings((prev) =>
       prev.map((hostel) => {
-        if (hostel.name.includes('Shivalik')) {
+        if (hostel.name.includes(userHostel.split(' ')[0])) {
           return {
             ...hostel,
             totalKg: Number((hostel.totalKg + record.totalWeightKg).toFixed(1)),
@@ -90,7 +158,7 @@ function CampusEcoDropMain() {
   };
 
   // Handle voucher redemption
-  const handleRedeemVoucher = (voucherId: string) => {
+  const handleRedeemVoucher = async (voucherId: string) => {
     let targetCanteenId: string | undefined;
 
     setVouchers((prev) =>
@@ -106,6 +174,16 @@ function CampusEcoDropMain() {
         return v;
       })
     );
+
+    try {
+      await setDoc(
+        doc(db, 'vouchers', voucherId),
+        { isRedeemed: true, redeemedAt: new Date().toISOString() },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Could not update voucher in Firestore:', e);
+    }
 
     if (targetCanteenId) {
       setCanteens((prev) =>
@@ -129,7 +207,7 @@ function CampusEcoDropMain() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        ecoPoints={currentUser ? currentUser.ecoPoints : ecoPoints}
+        ecoPoints={userEcoPoints}
         activeVouchersCount={activeVouchersCount}
         onOpenDeposit={() => handleOpenDepositForBox()}
       />
@@ -139,9 +217,9 @@ function CampusEcoDropMain() {
         {activeTab === 'deposit' && (
           <DepositDashboardView
             dropBoxes={dropBoxes}
-            recentDeposits={recentDeposits}
+            recentDeposits={userDeposits}
             activeVouchers={vouchers.filter((v) => !v.isRedeemed)}
-            ecoPoints={currentUser ? currentUser.ecoPoints : ecoPoints}
+            ecoPoints={userEcoPoints}
             onOpenDeposit={handleOpenDepositForBox}
             onNavigateTab={setActiveTab}
           />
@@ -150,8 +228,8 @@ function CampusEcoDropMain() {
         {activeTab === 'wallet' && (
           <VoucherWallet
             vouchers={vouchers}
-            ecoPoints={currentUser ? currentUser.ecoPoints : ecoPoints}
-            totalKgRecycled={totalKgRecycled}
+            ecoPoints={userEcoPoints}
+            totalKgRecycled={userKgRecycled}
             onRedeemVoucher={handleRedeemVoucher}
             onOpenDeposit={() => handleOpenDepositForBox()}
           />
@@ -183,7 +261,7 @@ function CampusEcoDropMain() {
         {activeTab === 'facilities' && (
           <FacilitiesPortal
             dropBoxes={dropBoxes}
-            depositRecords={recentDeposits}
+            depositRecords={userDeposits}
           />
         )}
 
@@ -238,7 +316,7 @@ function CampusEcoDropMain() {
           </div>
 
           <div className="text-slate-400">
-            Student: <span className="font-mono text-slate-600">{currentUser?.email || 'aman.0251mba505@dgu.ac.in'}</span>
+            Student: <span className="font-mono text-slate-600">{currentUser?.email || 'Guest Student'}</span>
           </div>
         </div>
       </footer>
