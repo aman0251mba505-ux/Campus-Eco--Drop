@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { DropBoxLocation, DepositRecord, DigitalVoucher } from '../types';
 import { AiWasteAdvisor } from './AiWasteAdvisor';
+import heroCampusImg from '../assets/images/hero_campus_ecodrop_1793385450620.jpg';
 
 interface DepositDashboardViewProps {
   dropBoxes: DropBoxLocation[];
@@ -107,10 +108,14 @@ export const DepositDashboardView: React.FC<DepositDashboardViewProps> = ({
         {/* Hero Campus Photo Showcase */}
         <div className="lg:col-span-5 relative rounded-3xl overflow-hidden border border-slate-200 min-h-[320px] bg-slate-900 shadow-sm flex flex-col justify-end">
           <img
-            src="/src/assets/images/hero_campus_ecodrop_1793385450620.jpg"
-            alt="Campus Eco-Drop at University"
+            src={heroCampusImg}
+            alt="Campus Eco-Drop Hub 01 at DBS Global University"
             className="absolute inset-0 w-full h-full object-cover opacity-90 hover:scale-105 transition-transform duration-700"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              // Fallback to public folder path if needed
+              (e.currentTarget as HTMLImageElement).src = '/assets/images/hero_campus_ecodrop_1793385450620.jpg';
+            }}
           />
           <div className="relative z-10 p-6 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent text-white space-y-1.5">
             <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider block">

@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { DropBoxLocation } from '../types';
+import kioskImg from '../assets/images/smart_dropbox_kiosk_1793385451172.jpg';
 
 interface DropBoxDirectoryProps {
   dropBoxes: DropBoxLocation[];
@@ -84,10 +85,13 @@ export const DropBoxDirectory: React.FC<DropBoxDirectoryProps> = ({
         {/* Visual Kiosk Preview with Generated High-Res Photo */}
         <div className="lg:col-span-5 relative rounded-2xl overflow-hidden border border-slate-200 min-h-[260px] bg-slate-900 shadow-sm flex flex-col justify-end">
           <img
-            src="/src/assets/images/smart_dropbox_kiosk_1793385451172.jpg"
+            src={kioskImg}
             alt="Smart Campus Recycling Hub"
             className="absolute inset-0 w-full h-full object-cover opacity-90 hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/assets/images/smart_dropbox_kiosk_1793385451172.jpg';
+            }}
           />
           <div className="relative z-10 p-5 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent text-white">
             <span className="text-[11px] font-mono text-emerald-400 font-bold uppercase tracking-wider block">
