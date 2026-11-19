@@ -17,7 +17,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'aman.0251mba505@dgu.ac.in' ||
+        (request.auth.token.email == 'joshaman99@gmail.com' && request.auth.token.email_verified == true) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -36,26 +36,29 @@ service cloud.firestore {
 
     // User profiles collection
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId);
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && (
+        incoming().role == 'student' || isAdmin()
+      );
       allow update: if isSignedIn() && isValidId(userId) && (
-        request.auth.uid == userId || isAdmin()
+        (request.auth.uid == userId && (!('role' in incoming()) || incoming().role == existing().role)) ||
+        isAdmin()
       );
       allow delete: if isAdmin() && isValidId(userId);
     }
 
     // Deposits collection
     match /deposits/{depositId} {
-      allow get: if isSignedIn() && isValidId(depositId);
-      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(depositId) && (resource.data.studentUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidId(depositId) && incoming().studentUid == request.auth.uid;
       allow update, delete: if isAdmin() && isValidId(depositId);
     }
 
     // Vouchers collection
     match /vouchers/{voucherId} {
-      allow get: if isSignedIn() && isValidId(voucherId);
+      allow get: if isSignedIn() && isValidId(voucherId) && (resource.data.studentUid == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (
         resource.data.studentUid == request.auth.uid || isAdmin()
       );
@@ -69,7 +72,8 @@ service cloud.firestore {
 
     // Drop-Boxes collection
     match /dropBoxes/{boxId} {
-      allow get, list: if isSignedIn() && isValidId(boxId);
+      allow get: if isSignedIn() && isValidId(boxId);
+      allow list: if isSignedIn();
       allow create, delete: if isAdmin() && isValidId(boxId);
       allow update: if isSignedIn() && isValidId(boxId) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['capacityPercent', 'totalCollectedKg', 'status', 'lastEmptied']) ||

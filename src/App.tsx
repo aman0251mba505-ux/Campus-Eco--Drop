@@ -47,7 +47,7 @@ import {
 import { Leaf, ExternalLink, Building2, Award } from 'lucide-react';
 
 function CampusEcoDropMain() {
-  const { currentUser, updateUserStats } = useAuth();
+  const { currentUser, firebaseUser, updateUserStats } = useAuth();
   const [currentRole, setCurrentRole] = useState<AppRole>('student');
   const [activeTab, setActiveTab] = useState<string>('deposit');
   const [dropBoxes, setDropBoxes] = useState<DropBoxLocation[]>(INITIAL_DROP_BOXES);
@@ -74,7 +74,7 @@ function CampusEcoDropMain() {
 
   // Sync user's personal vouchers and deposits from Firestore
   useEffect(() => {
-    if (!currentUser?.email) {
+    if (!firebaseUser || !currentUser?.uid) {
       setVouchers([]);
       setUserDeposits([]);
       return;
@@ -84,7 +84,7 @@ function CampusEcoDropMain() {
       try {
         const vouchersQuery = query(
           collection(db, 'vouchers'),
-          where('studentEmail', '==', currentUser.email)
+          where('studentUid', '==', currentUser.uid)
         );
         const vSnap = await getDocs(vouchersQuery);
         const loadedVouchers: DigitalVoucher[] = [];
@@ -95,7 +95,7 @@ function CampusEcoDropMain() {
 
         const depositsQuery = query(
           collection(db, 'deposits'),
-          where('studentEmail', '==', currentUser.email)
+          where('studentUid', '==', currentUser.uid)
         );
         const dSnap = await getDocs(depositsQuery);
         const loadedDeposits: DepositRecord[] = [];
@@ -109,7 +109,7 @@ function CampusEcoDropMain() {
     };
 
     loadUserData();
-  }, [currentUser?.email]);
+  }, [firebaseUser, currentUser?.uid]);
 
   const activeVouchersCount = vouchers.filter((v) => !v.isRedeemed).length;
   const userKgRecycled = currentUser ? currentUser.totalWeightKg : 0;

@@ -18,7 +18,7 @@ export const VENTURE_METADATA = {
   university: 'DBS Global University (DGU), Dehradun',
   course: 'Entrepreneurship & Innovation • MBA',
   generatedDate: '10/1/2026',
-  pdfPath: '/public/assets/aistudio/aman.0251mba505_dgu.ac.in_645b5c0a.pdf',
+  pdfPath: '/assets/aistudio/aman.0251mba505_dgu.ac.in_645b5c0a.pdf',
   tagline: 'Smart Campus Recycling & Micro-Rewards Platform',
 };
 
